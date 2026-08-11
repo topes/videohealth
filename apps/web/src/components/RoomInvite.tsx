@@ -42,33 +42,13 @@ export function RoomInvite({ code, onClose }: RoomInviteProps) {
 
   return (
     <div
+      className="invite-overlay"
       role="dialog"
       aria-modal="true"
       aria-label="Invite others to this room"
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(26, 35, 50, 0.42)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        zIndex: 20,
-      }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-          width: 'min(420px, 100%)',
-          padding: 24,
-          boxShadow: 'var(--shadow-md)',
-          textAlign: 'center',
-        }}
-      >
+      <div className="invite-dialog" onClick={(e) => e.stopPropagation()}>
         <h2 style={{ fontSize: 20, marginBottom: 6 }}>Invite to this room</h2>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: 20, fontSize: 14 }}>
           Scan the QR code or share the room code below.
@@ -76,8 +56,8 @@ export function RoomInvite({ code, onClose }: RoomInviteProps) {
 
         <div
           style={{
-            width: 220,
-            height: 220,
+            width: 'min(220px, 70vw)',
+            aspectRatio: '1',
             margin: '0 auto 16px',
             background: '#fff',
             border: '1px solid var(--color-border)',
@@ -88,7 +68,7 @@ export function RoomInvite({ code, onClose }: RoomInviteProps) {
           }}
         >
           {dataUrl ? (
-            <img src={dataUrl} alt="Room join QR code" width={200} height={200} />
+            <img src={dataUrl} alt="Room join QR code" width={200} height={200} style={{ maxWidth: '100%', height: 'auto' }} />
           ) : (
             <span style={{ color: 'var(--color-text-subtle)', fontSize: 13 }}>Generating…</span>
           )}
@@ -98,7 +78,7 @@ export function RoomInvite({ code, onClose }: RoomInviteProps) {
           <button
             className="btn btn-ghost"
             onClick={() => copy(code, 'code')}
-            style={{ justifyContent: 'space-between', padding: '12px 14px' }}
+            style={{ justifyContent: 'space-between', padding: '12px 14px', flexWrap: 'wrap', gap: 8 }}
           >
             <span style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>Room code</span>
             <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '0.18em' }}>{code}</span>
@@ -109,12 +89,18 @@ export function RoomInvite({ code, onClose }: RoomInviteProps) {
           <button
             className="btn btn-ghost"
             onClick={() => copy(joinUrl, 'link')}
-            style={{ justifyContent: 'space-between', padding: '10px 14px', fontSize: 13 }}
+            style={{
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              fontSize: 13,
+              flexWrap: 'wrap',
+              gap: 8,
+            }}
           >
             <span style={{ color: 'var(--color-text-muted)' }}>Join link</span>
             <span
               style={{
-                maxWidth: '55%',
+                maxWidth: '100%',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',

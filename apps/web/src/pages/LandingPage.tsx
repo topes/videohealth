@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PageShell } from '../components/PageShell';
 import { BrandMark } from '../components/BrandMark';
 import { api } from '../lib/api';
+import '../styles/room.css';
 
 type Mode = 'idle' | 'create' | 'join';
 
@@ -58,20 +59,7 @@ export function LandingPage() {
 
   return (
     <PageShell>
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          maxWidth: 560,
-          margin: '0 auto',
-          width: '100%',
-          padding: '24px 0 64px',
-        }}
-      >
+      <div className="landing-hero page-enter">
         <BrandMark size="lg" />
         <h1
           style={{
@@ -88,7 +76,7 @@ export function LandingPage() {
         </p>
 
         {mode === 'idle' && (
-          <div style={{ marginTop: 40, display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div className="landing-ctas">
             <button className="btn btn-primary" onClick={() => setMode('create')}>
               Create a room
             </button>
@@ -100,18 +88,8 @@ export function LandingPage() {
 
         {mode !== 'idle' && (
           <form
+            className="landing-form"
             onSubmit={mode === 'create' ? handleCreate : handleJoin}
-            style={{
-              marginTop: 40,
-              width: '100%',
-              maxWidth: 420,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 24,
-              textAlign: 'left',
-              boxShadow: 'var(--shadow-sm)',
-            }}
           >
             <h2 style={{ fontSize: 18, marginBottom: 16 }}>
               {mode === 'create' ? 'Create a new room' : 'Join an existing room'}
@@ -151,7 +129,7 @@ export function LandingPage() {
               <div style={{ marginTop: 14, color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>
             )}
 
-            <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <div className="landing-form-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setMode('idle')} disabled={busy}>
                 Back
               </button>

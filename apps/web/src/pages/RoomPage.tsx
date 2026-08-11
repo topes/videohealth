@@ -8,8 +8,10 @@ import { Whiteboard } from '../components/Whiteboard';
 import { Notes } from '../components/Notes';
 import { useChimeSession } from '../hooks/useChimeSession';
 import { useRoomRealtime } from '../hooks/useRoomRealtime';
+import '../styles/room.css';
 
 type PanelTab = 'chat' | 'whiteboard' | 'notes';
+type MobilePane = 'call' | 'tools';
 
 interface SessionCache {
   meeting: unknown;
@@ -21,6 +23,7 @@ export function RoomPage() {
   const { code = '' } = useParams();
   const nav = useNavigate();
   const [tab, setTab] = useState<PanelTab>('chat');
+  const [mobilePane, setMobilePane] = useState<MobilePane>('call');
   const [inviteOpen, setInviteOpen] = useState(false);
 
   const cached = useMemo<SessionCache | null>(() => {
@@ -67,36 +70,13 @@ export function RoomPage() {
   if (!cached) return null;
 
   return (
-    <div
-      style={{
-        height: '100%',
-        display: 'grid',
-        gridTemplateRows: 'var(--header-h) 1fr auto',
-        background: 'var(--color-bg)',
-      }}
-    >
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 clamp(16px, 3vw, 24px)',
-          borderBottom: '1px solid var(--color-border)',
-          background: 'var(--color-surface)',
-        }}
-      >
-        <BrandMark size="sm" />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span
-            style={{
-              fontSize: 13,
-              color: 'var(--color-text-muted)',
-              padding: '6px 10px',
-              background: 'var(--color-accent-tint)',
-              borderRadius: 999,
-              border: '1px solid var(--color-border)',
-            }}
-          >
+    <div className="room">
+      <header className="room-header">
+        <div className="room-header-brand">
+          <BrandMark size="sm" />
+        </div>
+        <div className="room-header-actions">
+          <span className="room-code-chip">
             Room <strong style={{ color: 'var(--color-text)' }}>{code}</strong>
           </span>
           <button className="btn btn-ghost" onClick={() => setInviteOpen(true)}>
@@ -108,91 +88,45 @@ export function RoomPage() {
         </div>
       </header>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 340px',
-          gap: 16,
-          padding: 16,
-          minHeight: 0,
-        }}
-      >
-        <section
-          style={{
-            display: 'grid',
-            gridTemplateRows: '1fr auto',
-            gap: 12,
-            minHeight: 0,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 16,
-          }}
+      <nav className="room-mobile-nav" aria-label="Room sections">
+        <button
+          type="button"
+          className={`btn room-mobile-nav-btn${mobilePane === 'call' ? ' is-active' : ''}`}
+          onClick={() => setMobilePane('call')}
         >
-          <div
-            style={{
-              position: 'relative',
-              background: '#0f1a2b',
-              borderRadius: 'var(--radius-md)',
-              overflow: 'hidden',
-              minHeight: 0,
-            }}
-          >
-            <div
-              ref={remoteContainerRef}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: 8,
-                padding: 8,
-              }}
-            />
+          Call
+        </button>
+        <button
+          type="button"
+          className={`btn room-mobile-nav-btn${mobilePane === 'tools' ? ' is-active' : ''}`}
+          onClick={() => setMobilePane('tools')}
+        >
+          Chat & notes
+        </button>
+      </nav>
+
+      <div className="room-body" data-mobile-pane={mobilePane}>
+        <section className="room-stage">
+          <div className="room-video-frame">
+            <div ref={remoteContainerRef} className="room-remote-grid" />
             <video
               ref={screenShareRef}
+              className="room-screenshare"
               autoPlay
               playsInline
               muted
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                background: '#000',
-                display: chime.isReceivingScreenShare ? 'block' : 'none',
-              }}
+              style={{ display: chime.isReceivingScreenShare ? 'block' : 'none' }}
             />
             <video
               ref={localVideoRef}
+              className="room-local-preview"
               autoPlay
               playsInline
               muted
-              style={{
-                position: 'absolute',
-                right: 12,
-                bottom: 12,
-                width: 180,
-                height: 120,
-                objectFit: 'cover',
-                borderRadius: 8,
-                border: '2px solid rgba(255,255,255,0.15)',
-                background: '#000',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
-              }}
             />
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="room-controls">
             <button
               className={chime.muted ? 'btn btn-danger' : 'btn btn-ghost'}
               onClick={chime.toggleMute}
@@ -217,65 +151,29 @@ export function RoomPage() {
           </div>
         </section>
 
-        <aside
-          style={{
-            display: 'grid',
-            gridTemplateRows: 'auto auto 1fr',
-            gap: 12,
-            minHeight: 0,
-          }}
-        >
+        <aside className="room-aside">
           <PresenceList
             self={cached.displayName}
             connectionStatus={realtime.status}
             peers={realtime.peers}
           />
 
-          <div
-            role="tablist"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 4,
-              padding: 4,
-              background: 'var(--color-surface-alt)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-            }}
-          >
+          <div className="room-tabs" role="tablist">
             {(['chat', 'whiteboard', 'notes'] as PanelTab[]).map((t) => (
               <button
                 key={t}
+                type="button"
                 role="tab"
                 aria-selected={tab === t}
                 onClick={() => setTab(t)}
-                className="btn"
-                style={{
-                  padding: '8px 10px',
-                  fontSize: 13,
-                  background: tab === t ? 'var(--color-surface)' : 'transparent',
-                  color: tab === t ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                  border: 'none',
-                  borderRadius: 8,
-                  boxShadow: tab === t ? 'var(--shadow-sm)' : 'none',
-                }}
+                className={`btn room-tab${tab === t ? ' is-active' : ''}`}
               >
                 {t[0].toUpperCase() + t.slice(1)}
               </button>
             ))}
           </div>
 
-          <div
-            style={{
-              minHeight: 0,
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
+          <div className="room-panel">
             {tab === 'chat' && (
               <ChatPanel
                 messages={realtime.messages}
@@ -289,23 +187,13 @@ export function RoomPage() {
         </aside>
       </div>
 
-      <footer
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          padding: '10px 24px',
-          borderTop: '1px solid var(--color-border)',
-          background: 'var(--color-surface)',
-          fontSize: 12,
-          color: 'var(--color-text-muted)',
-        }}
-      >
+      <footer className="room-footer">
         <div>
           Signed in as <strong style={{ color: 'var(--color-text)' }}>{cached.displayName}</strong>
         </div>
-        <div>
-          Media: {chime.ready ? 'connected' : chime.error ? `error: ${chime.error}` : 'connecting…'} · Realtime:{' '}
-          {realtime.status}
+        <div className="room-footer-status">
+          Media: {chime.ready ? 'connected' : chime.error ? `error: ${chime.error}` : 'connecting…'} ·
+          Realtime: {realtime.status}
         </div>
       </footer>
 

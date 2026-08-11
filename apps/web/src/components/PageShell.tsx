@@ -10,8 +10,9 @@ interface PageShellProps {
 export function PageShell({ children, compact = false }: PageShellProps) {
   return (
     <div
+      className="page-shell"
       style={{
-        minHeight: '100%',
+        minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         background:
@@ -36,7 +37,8 @@ export function PageShell({ children, compact = false }: PageShellProps) {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          padding: compact ? 0 : 'clamp(24px, 5vw, 64px)',
+          padding: compact ? 0 : 'clamp(16px, 5vw, 64px)',
+          minHeight: 0,
         }}
       >
         {children}

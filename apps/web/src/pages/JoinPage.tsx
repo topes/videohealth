@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PageShell } from '../components/PageShell';
 import { BrandMark } from '../components/BrandMark';
 import { api } from '../lib/api';
+import '../styles/room.css';
 
 export function JoinPage() {
   const { code = '' } = useParams();
@@ -34,27 +35,8 @@ export function JoinPage() {
 
   return (
     <PageShell>
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px 0 64px',
-        }}
-      >
-        <form
-          onSubmit={handleJoin}
-          style={{
-            width: '100%',
-            maxWidth: 420,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 28,
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
+      <div className="landing-hero">
+        <form className="landing-form" onSubmit={handleJoin} style={{ marginTop: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
             <BrandMark size="md" />
           </div>
@@ -80,13 +62,8 @@ export function JoinPage() {
             <div style={{ marginTop: 14, color: 'var(--color-danger)', fontSize: 13 }}>{error}</div>
           )}
 
-          <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => nav('/')}
-              disabled={busy}
-            >
+          <div className="landing-form-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => nav('/')} disabled={busy}>
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={busy}>
