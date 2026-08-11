@@ -29,7 +29,7 @@ Resources:
         TableName: !GetAtt Data.Outputs.TableName
         TableArn: !GetAtt Data.Outputs.TableArn
         IndexArn: !GetAtt Data.Outputs.IndexArn
-        CorsOrigin: !Sub 'https://${DomainName}'
+        CorsOrigin: !Sub 'https://${DomainName},http://localhost:5173,http://127.0.0.1:5173'
         ChimeMediaRegion: !Ref AWS::Region
 
   Frontend:

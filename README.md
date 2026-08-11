@@ -51,6 +51,10 @@ VITE_API_URL=https://xxxxx.execute-api.us-east-1.amazonaws.com
 VITE_WS_URL=wss://yyyyy.execute-api.us-east-1.amazonaws.com/prod
 ```
 
+CORS allows `https://video.tiagolopes.com`, `http://localhost:5173`, and
+`http://127.0.0.1:5173`. Redeploy the stack after pulling these changes so the
+API Gateway / Lambda CORS config updates.
+
 ## One-time AWS bootstrap
 
 You need to do this once per AWS account.
