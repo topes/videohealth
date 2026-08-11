@@ -23,7 +23,6 @@ interface RemoteTileEntry {
   el: HTMLDivElement;
   video: HTMLVideoElement;
   label: HTMLDivElement;
-  externalUserId?: string;
 }
 
 export interface ChimeSessionState {
@@ -33,10 +32,21 @@ export interface ChimeSessionState {
   videoOn: boolean;
   sharingScreen: boolean;
   isReceivingScreenShare: boolean;
+  canShareScreen: boolean;
   toggleMute: () => void;
   toggleVideo: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
   leave: () => void;
+}
+
+export function detectScreenShareSupport(): boolean {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices) return false;
+  if (typeof navigator.mediaDevices.getDisplayMedia !== 'function') return false;
+  // iOS/iPadOS Safari expose no reliable screen capture for arbitrary web apps.
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) return false;
+  return true;
 }
 
 export function useChimeSession({
@@ -52,9 +62,57 @@ export function useChimeSession({
   const [videoOn, setVideoOn] = useState(false);
   const [sharingScreen, setSharingScreen] = useState(false);
   const [isReceivingScreenShare, setIsReceivingScreenShare] = useState(false);
+  const [canShareScreen] = useState(() => detectScreenShareSupport());
 
   const sessionRef = useRef<DefaultMeetingSession | null>(null);
   const remoteTiles = useRef<Map<number, RemoteTileEntry>>(new Map());
+  const localAttendeeIdRef = useRef<string | null>(null);
+  const contentTileIdRef = useRef<number | null>(null);
+  /** User intent: camera should be on when not screensharing. */
+  const wantsVideoRef = useRef(true);
+  const videoOnRef = useRef(false);
+
+  useEffect(() => {
+    videoOnRef.current = videoOn;
+  }, [videoOn]);
+
+  const startLocalCamera = useCallback(async (): Promise<boolean> => {
+    const session = sessionRef.current;
+    if (!session) return false;
+    const av = session.audioVideo;
+    try {
+      const cams = await session.deviceController.listVideoInputDevices();
+      if (!cams[0]) {
+        setError('No camera found');
+        return false;
+      }
+      await av.startVideoInput(cams[0].deviceId);
+      av.startLocalVideoTile();
+      setVideoOn(true);
+      videoOnRef.current = true;
+      return true;
+    } catch (err) {
+      console.warn('Failed to start camera', err);
+      setError(err instanceof Error ? err.message : String(err));
+      setVideoOn(false);
+      videoOnRef.current = false;
+      return false;
+    }
+  }, []);
+
+  const stopLocalCamera = useCallback(async () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    const av = session.audioVideo;
+    try {
+      av.stopLocalVideoTile();
+      await av.stopVideoInput();
+    } catch {
+      /* noop */
+    }
+    setVideoOn(false);
+    videoOnRef.current = false;
+  }, []);
 
   useEffect(() => {
     if (!meeting || !attendee) return;
@@ -65,10 +123,20 @@ export function useChimeSession({
         const logger = new ConsoleLogger('VideoHealth', LogLevel.WARN);
         const deviceController = new DefaultDeviceController(logger);
         const configuration = new MeetingSessionConfiguration(meeting, attendee);
+        localAttendeeIdRef.current = configuration.credentials?.attendeeId ?? null;
         const session = new DefaultMeetingSession(configuration, logger, deviceController);
         sessionRef.current = session;
 
         const av = session.audioVideo;
+
+        const isLocalContentTile = (tileState: VideoTileState) => {
+          const localId = localAttendeeIdRef.current;
+          if (!localId || !tileState.boundAttendeeId) return false;
+          return (
+            tileState.boundAttendeeId === `${localId}#content` ||
+            tileState.boundAttendeeId.startsWith(`${localId}#`)
+          );
+        };
 
         const observer: AudioVideoObserver = {
           audioVideoDidStart: () => {
@@ -78,21 +146,26 @@ export function useChimeSession({
             if (!disposed) setReady(false);
           },
           videoTileDidUpdate: (tileState: VideoTileState) => {
-            if (
-              !tileState.boundAttendeeId ||
-              tileState.localTile ||
-              tileState.isContent
-            ) {
-              if (tileState.localTile && tileState.tileId != null && localVideoRef.current) {
+            if (tileState.localTile && !tileState.isContent) {
+              if (tileState.tileId != null && localVideoRef.current) {
                 av.bindVideoElement(tileState.tileId, localVideoRef.current);
               }
-              if (tileState.isContent && tileState.tileId != null && screenShareRef.current) {
+              return;
+            }
+
+            if (tileState.isContent) {
+              if (tileState.tileId == null || !tileState.boundAttendeeId) return;
+              // Don't mirror our own screenshare into the main receive surface.
+              if (isLocalContentTile(tileState)) return;
+              if (screenShareRef.current) {
+                contentTileIdRef.current = tileState.tileId;
                 av.bindVideoElement(tileState.tileId, screenShareRef.current);
                 setIsReceivingScreenShare(true);
               }
               return;
             }
-            if (tileState.tileId == null) return;
+
+            if (!tileState.boundAttendeeId || tileState.tileId == null) return;
             const container = remoteContainerRef.current;
             if (!container) return;
 
@@ -100,26 +173,12 @@ export function useChimeSession({
             let entry = remoteTiles.current.get(tileState.tileId);
             if (!entry) {
               const el = document.createElement('div');
-              el.style.position = 'relative';
-              el.style.background = '#000';
-              el.style.borderRadius = '8px';
-              el.style.overflow = 'hidden';
-              el.style.aspectRatio = '16/9';
+              el.className = 'room-remote-tile';
               const video = document.createElement('video');
               video.autoplay = true;
               video.playsInline = true;
-              video.style.width = '100%';
-              video.style.height = '100%';
-              video.style.objectFit = 'cover';
               const label = document.createElement('div');
-              label.style.position = 'absolute';
-              label.style.left = '8px';
-              label.style.bottom = '8px';
-              label.style.padding = '2px 8px';
-              label.style.background = 'rgba(0,0,0,0.5)';
-              label.style.color = '#fff';
-              label.style.fontSize = '12px';
-              label.style.borderRadius = '999px';
+              label.className = 'room-remote-label';
               label.textContent = decodeExternalUserId(boundExternal) ?? 'Guest';
               el.appendChild(video);
               el.appendChild(label);
@@ -131,6 +190,10 @@ export function useChimeSession({
             av.bindVideoElement(tileState.tileId, entry.video);
           },
           videoTileWasRemoved: (tileId: number) => {
+            if (contentTileIdRef.current === tileId) {
+              contentTileIdRef.current = null;
+              setIsReceivingScreenShare(false);
+            }
             const entry = remoteTiles.current.get(tileId);
             if (entry) {
               entry.el.remove();
@@ -140,8 +203,15 @@ export function useChimeSession({
         };
 
         const contentObserver: ContentShareObserver = {
+          contentShareDidStart: () => {
+            setSharingScreen(true);
+          },
           contentShareDidStop: () => {
-            setIsReceivingScreenShare(false);
+            setSharingScreen(false);
+            // Browser "Stop sharing" UI also lands here — restore camera if user still wants it.
+            if (!disposed && wantsVideoRef.current && !videoOnRef.current) {
+              void startLocalCamera();
+            }
           },
         };
 
@@ -166,15 +236,8 @@ export function useChimeSession({
         document.body.appendChild(audioEl);
         await av.bindAudioElement(audioEl);
 
-        try {
-          const cams = await deviceController.listVideoInputDevices();
-          if (cams[0] && !disposed) {
-            await av.startVideoInput(cams[0].deviceId);
-            av.startLocalVideoTile();
-            setVideoOn(true);
-          }
-        } catch (camErr) {
-          console.warn('Could not start camera by default', camErr);
+        if (!disposed && wantsVideoRef.current) {
+          await startLocalCamera();
         }
       } catch (err) {
         console.error(err);
@@ -187,11 +250,6 @@ export function useChimeSession({
       const session = sessionRef.current;
       if (session) {
         try {
-          session.audioVideo.stop();
-        } catch {
-          /* noop */
-        }
-        try {
           session.audioVideo.stopLocalVideoTile();
         } catch {
           /* noop */
@@ -201,9 +259,15 @@ export function useChimeSession({
         } catch {
           /* noop */
         }
+        try {
+          session.audioVideo.stop();
+        } catch {
+          /* noop */
+        }
       }
       remoteTiles.current.forEach((t) => t.el.remove());
       remoteTiles.current.clear();
+      contentTileIdRef.current = null;
       sessionRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,40 +286,60 @@ export function useChimeSession({
   }, []);
 
   const toggleVideo = useCallback(async () => {
-    const session = sessionRef.current;
-    if (!session) return;
-    const av = session.audioVideo;
-    if (videoOn) {
-      av.stopLocalVideoTile();
-      await av.stopVideoInput();
-      setVideoOn(false);
+    if (videoOnRef.current) {
+      wantsVideoRef.current = false;
+      await stopLocalCamera();
     } else {
-      const cams = await session.deviceController.listVideoInputDevices();
-      if (!cams[0]) {
-        setError('No camera found');
-        return;
-      }
-      await av.startVideoInput(cams[0].deviceId);
-      av.startLocalVideoTile();
-      setVideoOn(true);
+      wantsVideoRef.current = true;
+      await startLocalCamera();
     }
-  }, [videoOn]);
+  }, [startLocalCamera, stopLocalCamera]);
 
   const toggleScreenShare = useCallback(async () => {
     const av = sessionRef.current?.audioVideo;
     if (!av) return;
+
     if (sharingScreen) {
-      await av.stopContentShare();
-      setSharingScreen(false);
-    } else {
       try {
-        await av.startContentShareFromScreenCapture();
-        setSharingScreen(true);
+        await av.stopContentShare();
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       }
+      // contentShareDidStop restores camera when wantsVideoRef is true
+      setSharingScreen(false);
+      return;
     }
-  }, [sharingScreen]);
+
+    if (!detectScreenShareSupport()) {
+      setError('Screen sharing isn’t supported on this device. Use a desktop browser.');
+      return;
+    }
+
+    try {
+      await av.startContentShareFromScreenCapture();
+      setSharingScreen(true);
+      setError(null);
+      // Some browsers/devices drop the camera when capture starts — heal after a beat if needed.
+      window.setTimeout(() => {
+        if (wantsVideoRef.current && !videoOnRef.current) {
+          void startLocalCamera();
+        }
+      }, 500);
+    } catch (err) {
+      setSharingScreen(false);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(
+        /NotAllowedError|Permission|denied/i.test(message)
+          ? 'Screen share was blocked. Allow screen capture and try again.'
+          : /getDisplayMedia|not supported|undefined/i.test(message)
+            ? 'Screen sharing isn’t supported on this device. Use a desktop browser.'
+            : message,
+      );
+      if (wantsVideoRef.current && !videoOnRef.current) {
+        await startLocalCamera();
+      }
+    }
+  }, [sharingScreen, startLocalCamera]);
 
   const leave = useCallback(() => {
     const session = sessionRef.current;
@@ -276,6 +360,7 @@ export function useChimeSession({
     videoOn,
     sharingScreen,
     isReceivingScreenShare,
+    canShareScreen,
     toggleMute,
     toggleVideo,
     toggleScreenShare,

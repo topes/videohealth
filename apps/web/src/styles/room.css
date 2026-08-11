@@ -54,12 +54,22 @@
 
 .room-stage {
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 16px;
+  gap: 0;
+}
+
+.room-media-error {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: #fdecee;
+  color: var(--color-danger);
+  font-size: 13px;
 }
 
 .room-video-frame {
@@ -79,6 +89,33 @@
   padding: 8px;
   /* leave space so tiles aren't hidden under the control bar */
   padding-bottom: 80px;
+  z-index: 0;
+}
+
+.room-remote-tile {
+  position: relative;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+
+.room-remote-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.room-remote-label {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 12px;
+  border-radius: 999px;
 }
 
 .room-screenshare {
@@ -88,6 +125,34 @@
   height: 100%;
   object-fit: contain;
   background: #000;
+  z-index: 1;
+  display: none;
+}
+
+.room-video-frame.is-screenshare .room-screenshare {
+  display: block;
+}
+
+/* While screenshare is active, keep remote cameras visible as a PiP strip */
+.room-video-frame.is-screenshare .room-remote-grid {
+  inset: auto;
+  top: 12px;
+  left: 12px;
+  width: 148px;
+  max-height: calc(100% - 100px);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  z-index: 2;
+}
+
+.room-video-frame.is-screenshare .room-remote-tile {
+  width: 148px;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 .room-local-preview {
@@ -102,6 +167,11 @@
   background: #000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   z-index: 2;
+}
+
+.room-video-frame.is-screenshare .room-local-preview {
+  top: auto;
+  bottom: 80px;
 }
 
 .room-controls {
@@ -352,6 +422,21 @@
     height: 66px;
     right: 8px;
     top: 8px;
+  }
+
+  .room-video-frame.is-screenshare .room-remote-grid {
+    width: 104px;
+    top: 8px;
+    left: 8px;
+  }
+
+  .room-video-frame.is-screenshare .room-remote-tile {
+    width: 104px;
+  }
+
+  .room-video-frame.is-screenshare .room-local-preview {
+    bottom: 72px;
+    top: auto;
   }
 
   .room-controls {

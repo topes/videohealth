@@ -176,7 +176,9 @@ export function RoomPage() {
 
       <div className="room-body" data-mobile-pane={mobilePane}>
         <section className="room-stage">
-          <div className="room-video-frame">
+          <div
+            className={`room-video-frame${chime.isReceivingScreenShare ? ' is-screenshare' : ''}`}
+          >
             <div ref={remoteContainerRef} className="room-remote-grid" />
             <video
               ref={screenShareRef}
@@ -184,7 +186,6 @@ export function RoomPage() {
               autoPlay
               playsInline
               muted
-              style={{ display: chime.isReceivingScreenShare ? 'block' : 'none' }}
             />
             <video
               ref={localVideoRef}
@@ -217,19 +218,36 @@ export function RoomPage() {
               >
                 <IconCamera off={!chime.videoOn} />
               </button>
-              <button
-                type="button"
-                className={`room-control-btn${chime.sharingScreen ? ' is-active' : ''}`}
-                onClick={chime.toggleScreenShare}
-                disabled={!chime.ready}
-                aria-label={chime.sharingScreen ? 'Stop sharing screen' : 'Share screen'}
-                aria-pressed={chime.sharingScreen}
-                title={chime.sharingScreen ? 'Stop sharing' : 'Share screen'}
-              >
-                <IconScreenShare />
-              </button>
+              {chime.canShareScreen ? (
+                <button
+                  type="button"
+                  className={`room-control-btn${chime.sharingScreen ? ' is-active' : ''}`}
+                  onClick={chime.toggleScreenShare}
+                  disabled={!chime.ready}
+                  aria-label={chime.sharingScreen ? 'Stop sharing screen' : 'Share screen'}
+                  aria-pressed={chime.sharingScreen}
+                  title={chime.sharingScreen ? 'Stop sharing' : 'Share screen'}
+                >
+                  <IconScreenShare />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="room-control-btn"
+                  disabled
+                  aria-label="Screen sharing not supported on this device"
+                  title="Screen sharing isn’t available on this device. Use a desktop browser."
+                >
+                  <IconScreenShare />
+                </button>
+              )}
             </div>
           </div>
+          {chime.error && (
+            <div className="room-media-error" role="status">
+              {chime.error}
+            </div>
+          )}
         </section>
 
         <aside className="room-aside">
