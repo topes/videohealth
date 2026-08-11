@@ -1,0 +1,111 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: videohealth
+  DOMAIN_NAME: video.tiagolopes.com
+
+jobs:
+  deploy:
+    name: Build & deploy VideoHealth
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Lambdas
+        run: npm run build:api
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Package CloudFormation
+        working-directory: infra
+        run: |
+          aws cloudformation package \
+            --template-file root.yaml \
+            --s3-bucket ${{ secrets.ARTIFACTS_BUCKET }} \
+            --s3-prefix videohealth/${{ github.sha }} \
+            --output-template-file packaged.yaml
+
+      - name: Deploy CloudFormation
+        working-directory: infra
+        run: |
+          aws cloudformation deploy \
+            --template-file packaged.yaml \
+            --stack-name ${{ env.STACK_NAME }} \
+            --parameter-overrides \
+              DomainName=${{ env.DOMAIN_NAME }} \
+              HostedZoneId=${{ secrets.HOSTED_ZONE_ID }} \
+            --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+            --no-fail-on-empty-changeset
+
+      - name: Read stack outputs
+        id: outputs
+        run: |
+          outputs=$(aws cloudformation describe-stacks --stack-name ${{ env.STACK_NAME }} --query 'Stacks[0].Outputs' --output json)
+          api=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="HttpApiEndpoint") | .OutputValue')
+          ws=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="WsApiEndpoint") | .OutputValue')
+          bucket=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="BucketName") | .OutputValue')
+          dist=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="DistributionId") | .OutputValue')
+          site=$(echo "$outputs" | jq -r '.[] | select(.OutputKey=="SiteUrl") | .OutputValue')
+          echo "api=$api" >> "$GITHUB_OUTPUT"
+          echo "ws=$ws" >> "$GITHUB_OUTPUT"
+          echo "bucket=$bucket" >> "$GITHUB_OUTPUT"
+          echo "dist=$dist" >> "$GITHUB_OUTPUT"
+          echo "site=$site" >> "$GITHUB_OUTPUT"
+
+      - name: Build web
+        working-directory: apps/web
+        env:
+          VITE_API_URL: ${{ steps.outputs.outputs.api }}
+          VITE_WS_URL: ${{ steps.outputs.outputs.ws }}
+        run: npm run build
+
+      - name: Sync web to S3
+        run: |
+          aws s3 sync apps/web/dist "s3://${{ steps.outputs.outputs.bucket }}" \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html" \
+            --exclude "*.map"
+          aws s3 cp apps/web/dist/index.html "s3://${{ steps.outputs.outputs.bucket }}/index.html" \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --content-type "text/html"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.outputs.outputs.dist }} \
+            --paths "/*"
+
+      - name: Summary
+        run: |
+          echo "### VideoHealth deployed :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Site: ${{ steps.outputs.outputs.site }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- HTTP API: ${{ steps.outputs.outputs.api }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- WS API: ${{ steps.outputs.outputs.ws }}" >> "$GITHUB_STEP_SUMMARY"

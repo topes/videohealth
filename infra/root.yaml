@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VideoHealth root stack — orchestrates data, api, and frontend nested stacks.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: videohealth
+  DomainName:
+    Type: String
+    Default: video.tiagolopes.com
+  HostedZoneId:
+    Type: String
+    Description: Route53 hosted zone ID for the apex domain.
+
+Resources:
+  Data:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./nested/data.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+
+  Api:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./nested/api.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        TableName: !GetAtt Data.Outputs.TableName
+        TableArn: !GetAtt Data.Outputs.TableArn
+        IndexArn: !GetAtt Data.Outputs.IndexArn
+        CorsOrigin: !Sub 'https://${DomainName}'
+        ChimeMediaRegion: !Ref AWS::Region
+
+  Frontend:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./nested/frontend.yaml
+      Parameters:
+        ProjectName: !Ref ProjectName
+        DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
+
+Outputs:
+  SiteUrl:
+    Value: !GetAtt Frontend.Outputs.SiteUrl
+  BucketName:
+    Value: !GetAtt Frontend.Outputs.BucketName
+  DistributionId:
+    Value: !GetAtt Frontend.Outputs.DistributionId
+  HttpApiEndpoint:
+    Value: !GetAtt Api.Outputs.HttpApiEndpoint
+  WsApiEndpoint:
+    Value: !GetAtt Api.Outputs.WsApiEndpoint

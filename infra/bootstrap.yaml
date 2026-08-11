@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  VideoHealth one-time bootstrap: GitHub OIDC provider, deploy role, and an
+  S3 bucket used by `aws cloudformation package` to upload nested templates
+  and Lambda code. Deploy this stack once, manually, before running the CI
+  workflow.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: videohealth
+  GitHubOrg:
+    Type: String
+    Description: GitHub org or user that owns the repo (e.g. tiagolopes).
+  GitHubRepo:
+    Type: String
+    Description: Repository name (e.g. telemedicine).
+  BranchFilter:
+    Type: String
+    Default: 'refs/heads/main'
+    Description: >
+      Sub filter for the OIDC trust policy. Use "*" to allow any ref/branch,
+      or a value like "refs/heads/main".
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-deploy'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Ref GitHubOidcProvider
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubOrg}/${GitHubRepo}:${BranchFilter}'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-artifacts-${AWS::AccountId}-${AWS::Region}'
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-artifacts
+            Status: Enabled
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn
+    Description: Set as GitHub secret AWS_ROLE_ARN.
+  ArtifactsBucket:
+    Value: !Ref ArtifactsBucket
+    Description: Set as GitHub secret ARTIFACTS_BUCKET.

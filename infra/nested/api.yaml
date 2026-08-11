@@ -1,0 +1,355 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VideoHealth - HTTP API, WebSocket API and Lambdas.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: videohealth
+  TableName:
+    Type: String
+  TableArn:
+    Type: String
+  IndexArn:
+    Type: String
+  CorsOrigin:
+    Type: String
+    Default: '*'
+  ChimeMediaRegion:
+    Type: String
+    Default: us-east-1
+
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: videohealth-inline
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource:
+                  - !Ref TableArn
+                  - !Ref IndexArn
+              - Effect: Allow
+                Action:
+                  - chime:CreateMeeting
+                  - chime:CreateAttendee
+                  - chime:DeleteMeeting
+                  - chime:GetMeeting
+                Resource: '*'
+
+  CreateRoomFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-create-room'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code: ../../services/api/dist/http/createRoom
+      Timeout: 15
+      MemorySize: 512
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          CONN_ROOM_INDEX: byRoom
+          CORS_ORIGIN: !Ref CorsOrigin
+          CHIME_MEDIA_REGION: !Ref ChimeMediaRegion
+
+  JoinRoomFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-join-room'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code: ../../services/api/dist/http/joinRoom
+      Timeout: 15
+      MemorySize: 512
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          CONN_ROOM_INDEX: byRoom
+          CORS_ORIGIN: !Ref CorsOrigin
+          CHIME_MEDIA_REGION: !Ref ChimeMediaRegion
+
+  GetRoomFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-get-room'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code: ../../services/api/dist/http/getRoom
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          CONN_ROOM_INDEX: byRoom
+          CORS_ORIGIN: !Ref CorsOrigin
+
+  WsConnectFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-ws-connect'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code: ../../services/api/dist/ws/connect
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          CONN_ROOM_INDEX: byRoom
+
+  WsDisconnectFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-ws-disconnect'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code: ../../services/api/dist/ws/disconnect
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          CONN_ROOM_INDEX: byRoom
+
+  WsDefaultFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-ws-default'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code: ../../services/api/dist/ws/default
+      Timeout: 15
+      MemorySize: 512
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+          CONN_ROOM_INDEX: byRoom
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ProjectName}-http'
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref CorsOrigin
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - content-type
+          - authorization
+        MaxAge: 300
+
+  HttpStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+
+  CreateRoomIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt CreateRoomFn.Arn
+      PayloadFormatVersion: '2.0'
+
+  JoinRoomIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt JoinRoomFn.Arn
+      PayloadFormatVersion: '2.0'
+
+  GetRoomIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt GetRoomFn.Arn
+      PayloadFormatVersion: '2.0'
+
+  CreateRoomRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /rooms'
+      Target: !Sub 'integrations/${CreateRoomIntegration}'
+
+  JoinRoomRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /rooms/{code}/join'
+      Target: !Sub 'integrations/${JoinRoomIntegration}'
+
+  GetRoomRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /rooms/{code}'
+      Target: !Sub 'integrations/${GetRoomIntegration}'
+
+  CreateRoomInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreateRoomFn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/rooms'
+
+  JoinRoomInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref JoinRoomFn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/rooms/*/join'
+
+  GetRoomInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GetRoomFn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/GET/rooms/*'
+
+  WsApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${ProjectName}-ws'
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: '$request.body.action'
+
+  WsConnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WsApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WsConnectFn.Arn}/invocations'
+
+  WsDisconnectIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WsApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WsDisconnectFn.Arn}/invocations'
+
+  WsDefaultIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WsApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WsDefaultFn.Arn}/invocations'
+
+  WsConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WsApi
+      RouteKey: $connect
+      Target: !Sub 'integrations/${WsConnectIntegration}'
+
+  WsDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WsApi
+      RouteKey: $disconnect
+      Target: !Sub 'integrations/${WsDisconnectIntegration}'
+
+  WsDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WsApi
+      RouteKey: $default
+      Target: !Sub 'integrations/${WsDefaultIntegration}'
+
+  WsDeployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - WsConnectRoute
+      - WsDisconnectRoute
+      - WsDefaultRoute
+    Properties:
+      ApiId: !Ref WsApi
+
+  WsStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WsApi
+      StageName: prod
+      DeploymentId: !Ref WsDeployment
+      DefaultRouteSettings:
+        DataTraceEnabled: false
+        DetailedMetricsEnabled: false
+
+  WsConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WsConnectFn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WsApi}/*'
+
+  WsDisconnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WsDisconnectFn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WsApi}/*'
+
+  WsDefaultPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WsDefaultFn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WsApi}/*'
+
+  WsManagePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: videohealth-ws-manage
+      Roles:
+        - !Ref LambdaRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: execute-api:ManageConnections
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WsApi}/*'
+
+Outputs:
+  HttpApiEndpoint:
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  WsApiEndpoint:
+    Value: !Sub 'wss://${WsApi}.execute-api.${AWS::Region}.amazonaws.com/${WsStage}'

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Lambda build artifacts
+services/api/dist/
+services/api/lambda-bundle/
+services/api/*.zip
+
+# CFN packaged
+infra/packaged.yaml
+infra/packaged-*.yaml
+
+# Frontend build
+apps/web/dist/
+apps/web/.vite/
+
+# AWS SAM
+.aws-sam/
