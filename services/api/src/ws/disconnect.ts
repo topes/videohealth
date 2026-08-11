@@ -18,7 +18,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       connectionId,
     );
     const peers = remaining
-      .filter((c) => c.connectionId !== connectionId)
+      .filter((c) => c.connectionId !== connectionId && Boolean(c.connectionId) && Boolean(c.displayName))
       .map((c) => ({ connectionId: c.connectionId, displayName: c.displayName }));
     await broadcast(client, conn.code, { type: 'presence.state', peers }, connectionId);
   }

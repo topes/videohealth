@@ -116,8 +116,10 @@ export async function listConnectionsForRoom(code: string): Promise<ConnectionIt
       TableName: TABLE,
       IndexName: CONN_INDEX,
       KeyConditionExpression: '#code = :c',
-      ExpressionAttributeNames: { '#code': 'code' },
-      ExpressionAttributeValues: { ':c': code },
+      // Room META rows also carry `code`, so exclude them from connection fan-out.
+      FilterExpression: '#type = :conn',
+      ExpressionAttributeNames: { '#code': 'code', '#type': 'type' },
+      ExpressionAttributeValues: { ':c': code, ':conn': 'CONN' },
     }),
   );
   return (res.Items as ConnectionItem[] | undefined) ?? [];

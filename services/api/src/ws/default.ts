@@ -22,7 +22,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     case 'presence.hello':
     case 'presence.ping': {
       const conns = await listConnectionsForRoom(conn.code);
-      const peers = conns.map((c) => ({ connectionId: c.connectionId, displayName: c.displayName }));
+      const peers = conns
+        .filter((c) => Boolean(c.connectionId) && Boolean(c.displayName))
+        .map((c) => ({ connectionId: c.connectionId, displayName: c.displayName }));
       await broadcast(client, conn.code, { type: 'presence.state', peers });
       break;
     }

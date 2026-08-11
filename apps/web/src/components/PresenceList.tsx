@@ -1,7 +1,7 @@
 import type { Peer, RealtimeStatus } from '../hooks/useRoomRealtime';
 
 interface PresenceListProps {
-  self: string;
+  self?: string | null;
   peers: Peer[];
   connectionStatus: RealtimeStatus;
 }
@@ -20,7 +20,10 @@ function statusColor(status: RealtimeStatus) {
 }
 
 export function PresenceList({ self, peers, connectionStatus }: PresenceListProps) {
-  const others = peers.filter((p) => p.displayName !== self);
+  const selfName = self?.trim() || 'Guest';
+  const others = peers.filter(
+    (p) => Boolean(p?.connectionId) && Boolean(p?.displayName) && p.displayName !== selfName,
+  );
   return (
     <div
       style={{
@@ -52,9 +55,9 @@ export function PresenceList({ self, peers, connectionStatus }: PresenceListProp
       </div>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
         <li style={personRowStyle}>
-          <Avatar name={self} accent />
+          <Avatar name={selfName} accent />
           <span>
-            <strong>{self}</strong>
+            <strong>{selfName}</strong>
             <span style={{ color: 'var(--color-text-subtle)' }}> · you</span>
           </span>
         </li>
@@ -81,8 +84,8 @@ const personRowStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-function Avatar({ name, accent }: { name: string; accent?: boolean }) {
-  const initial = name.trim()[0]?.toUpperCase() ?? '?';
+function Avatar({ name, accent }: { name?: string | null; accent?: boolean }) {
+  const initial = (name ?? '').trim()[0]?.toUpperCase() ?? '?';
   return (
     <span
       style={{

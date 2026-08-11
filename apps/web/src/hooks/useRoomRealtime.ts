@@ -150,8 +150,11 @@ export function useRoomRealtime({ code, displayName, enabled }: UseRoomRealtimeO
           break;
         }
         case 'presence.state': {
-          const p = msg as unknown as { peers: Peer[] };
-          setPeers(p.peers);
+          const p = msg as unknown as { peers?: Peer[] };
+          const next = Array.isArray(p.peers)
+            ? p.peers.filter((peer) => Boolean(peer?.connectionId) && Boolean(peer?.displayName))
+            : [];
+          setPeers(next);
           break;
         }
         case 'yjs': {
