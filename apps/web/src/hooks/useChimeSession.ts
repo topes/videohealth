@@ -165,6 +165,17 @@ export function useChimeSession({
         audioEl.autoplay = true;
         document.body.appendChild(audioEl);
         await av.bindAudioElement(audioEl);
+
+        try {
+          const cams = await deviceController.listVideoInputDevices();
+          if (cams[0] && !disposed) {
+            await av.startVideoInput(cams[0].deviceId);
+            av.startLocalVideoTile();
+            setVideoOn(true);
+          }
+        } catch (camErr) {
+          console.warn('Could not start camera by default', camErr);
+        }
       } catch (err) {
         console.error(err);
         if (!disposed) setError(err instanceof Error ? err.message : String(err));
