@@ -20,7 +20,13 @@ export function BrandMark({ size = 'md', showWordmark = true }: BrandMarkProps) 
       }}
       aria-label="VideoHealth"
     >
-      <img src="/logo.png" alt="" width={s.icon} height={s.icon} style={{ display: 'block' }} />
+      <img
+        src="/logo.png"
+        alt=""
+        width={s.icon}
+        height={s.icon}
+        style={{ display: 'block', objectFit: 'contain' }}
+      />
       {showWordmark && (
         <span
           className="brand-wordmark"
