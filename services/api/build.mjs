@@ -24,7 +24,7 @@ for (const [name, entry] of Object.entries(entries)) {
     entryPoints: [resolve(__dirname, entry)],
     bundle: true,
     platform: 'node',
-    target: 'node20',
+    target: 'node22',
     format: 'esm',
     outfile: bundleOut,
     sourcemap: true,

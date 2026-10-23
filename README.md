@@ -33,7 +33,7 @@ infra/
 
 ## Local development
 
-Requirements: Node 20+, an AWS account (for `CreateMeeting`) if you want to test end-to-end.
+Requirements: Node 22.23.4+, an AWS account (for `CreateMeeting`) if you want to test end-to-end.
 
 ```
 npm install

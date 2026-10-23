@@ -59,7 +59,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-create-room'
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Code: ../../services/api/dist/http/createRoom
@@ -76,7 +76,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-join-room'
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Code: ../../services/api/dist/http/joinRoom
@@ -93,7 +93,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-get-room'
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Code: ../../services/api/dist/http/getRoom
@@ -109,7 +109,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-ws-connect'
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Code: ../../services/api/dist/ws/connect
@@ -124,7 +124,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-ws-disconnect'
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Code: ../../services/api/dist/ws/disconnect
@@ -139,7 +139,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${ProjectName}-ws-default'
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Code: ../../services/api/dist/ws/default
